@@ -6,6 +6,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const path = require('path');
+
+// This line tells the server to look for your HTML file in the current folder
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'student-analyzer.html'));
+});
+
 const dbUrl = process.env.DATABASE_URL || {
     host: 'localhost',
     user: 'root',
