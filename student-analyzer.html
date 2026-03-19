@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Performance Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background:#f5f7fa; text-align:center; padding: 20px; }
+        .container { width:90%; margin:auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        input { padding:8px; margin:5px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding:10px 15px; margin:5px; cursor:pointer; border: none; border-radius: 4px; background: #28a745; color: white; font-weight: bold; }
+        button:hover { background: #218838; }
+        table { width:100%; margin-top:20px; border-collapse:collapse; }
+        th, td { border:1px solid #ddd; padding:12px; }
+        th { background:#28a745; color:white; }
+        #topper { font-size: 1.2rem; color: #28a745; font-weight:bold; margin: 20px 0; }
+        canvas { margin-top: 20px; max-height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Student Performance Analyzer</h1>
+    <input type="text" id="name" placeholder="Student Name">
+    <input type="number" id="sub1" placeholder="Subject 1">
+    <input type="number" id="sub2" placeholder="Subject 2">
+    <input type="number" id="sub3" placeholder="Subject 3">
+    <br>
+    <button onclick="addStudent()">Save to Backend</button>
+    <button onclick="clearData()" style="background: #dc3545;">Clear All Data</button>
+
+    <div id="topper"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Sub1</th>
+                <th>Sub2</th>
+                <th>Sub3</th>
+                <th>Total</th>
+                <th>Average</th>
+                <th>Grade</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+
+    <canvas id="chart"></canvas>
+</div>
+
+<script>
+let students = JSON.parse(localStorage.getItem("students")) || [];
+
+async function addStudent() {
+    let name = document.getElementById("name").value;
+    let s1 = Number(document.getElementById("sub1").value);
+    let s2 = Number(document.getElementById("sub2").value);
+    let s3 = Number(document.getElementById("sub3").value);
+
+    if(!name || name === "" || isNaN(s1) || isNaN(s2) || isNaN(s3)) {
+        alert("Please enter a name and all marks!");
+        return;
+    }
+
+    try {
+        // SENDING DATA TO YOUR NODE.JS SERVER
+        const response = await fetch("http://localhost:3000/result", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name, mark1: s1, mark2: s2, mark3: s3 })
+        });
+
+        if (!response.ok) throw new Error("Server error");
+
+        const data = await response.json();
+
+        // Adding the result returned from the server to our list
+        students.push({
+            name: data.student,
+            sub1: s1,
+            sub2: s2,
+            sub3: s3,
+            total: data.total,
+            average: data.average,
+            grade: data.grade
+        });
+
+        localStorage.setItem("students", JSON.stringify(students));
+        
+        // Clear inputs
+        document.getElementById("name").value = "";
+        document.getElementById("sub1").value = "";
+        document.getElementById("sub2").value = "";
+        document.getElementById("sub3").value = "";
+
+        displayData();
+        updateChart();
+        showTopper();
+
+    } catch(error) {
+        alert("❌ Error: Backend not connected! Make sure 'node server.js' is running.");
+        console.log(error);
+    }
+}
+
+function displayData() {
+    let body = document.getElementById("tableBody");
+    body.innerHTML = "";
+    students.forEach(s => {
+        body.innerHTML += `<tr>
+            <td>${s.name}</td>
+            <td>${s.sub1}</td>
+            <td>${s.sub2}</td>
+            <td>${s.sub3}</td>
+            <td>${s.total}</td>
+            <td>${s.average}</td>
+            <td>${s.grade}</td>
+        </tr>`;
+    });
+}
+
+function showTopper() {
+    if(students.length === 0) return;
+    let topper = students.reduce((max, s) => s.total > max.total ? s : max);
+    document.getElementById("topper").innerText = "🏆 Topper: " + topper.name + " (" + topper.total + " Marks)";
+}
+
+function clearData() {
+    if(confirm("Delete all records?")) {
+        localStorage.removeItem("students");
+        students = [];
+        displayData();
+        updateChart();
+        document.getElementById("topper").innerText = "";
+    }
+}
+
+let chart;
+function updateChart() {
+    let names = students.map(s => s.name);
+    let totals = students.map(s => s.total);
+    const ctx = document.getElementById("chart").getContext("2d");
+    if(chart) chart.destroy();
+    chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: names,
+            datasets: [{ label: "Total Marks", data: totals, backgroundColor: "#28a745" }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+}
+
+// Initialize on page load
+displayData();
+updateChart();
+showTopper();
+</script>
+
+</body>
+</html>
