@@ -6,13 +6,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Connect to MySQL
-const db = mysql.createConnection({
+const dbUrl = process.env.DATABASE_URL || {
     host: 'localhost',
-    user: 'root',      // Default XAMPP user
-    password: '',      // Default XAMPP password is empty
+    user: 'root',
+    password: '',
     database: 'student_db'
-});
+};
+
+const connection = mysql.createConnection(dbUrl);
 
 db.connect(err => {
     if (err) {
