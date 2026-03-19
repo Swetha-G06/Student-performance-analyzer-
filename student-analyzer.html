@@ -6,33 +6,40 @@
     <title>Student Performance Analyzer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background:#f5f7fa; text-align:center; padding: 20px; }
-        .container { width:90%; margin:auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        input { padding:8px; margin:5px; border: 1px solid #ccc; border-radius: 4px; }
-        button { padding:10px 15px; margin:5px; cursor:pointer; border: none; border-radius: 4px; background: #28a745; color: white; font-weight: bold; }
-        button:hover { background: #218838; }
-        table { width:100%; margin-top:20px; border-collapse:collapse; }
-        th, td { border:1px solid #ddd; padding:12px; }
-        th { background:#28a745; color:white; }
-        #topper { font-size: 1.2rem; color: #28a745; font-weight:bold; margin: 20px 0; }
-        canvas { margin-top: 20px; max-height: 300px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 600px; text-align: center; }
+        h1 { color: #2c3e50; margin-bottom: 25px; }
+        input { width: calc(100% - 20px); padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+        .btn-container { display: flex; gap: 10px; margin-top: 15px; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 16px; font-weight: 600; transition: 0.3s; }
+        .btn-save { background-color: #27ae60; }
+        .btn-save:hover { background-color: #219150; }
+        .btn-clear { background-color: #e74c3c; }
+        .btn-clear:hover { background-color: #c0392b; }
+        table { width: 100%; border-collapse: collapse; margin-top: 30px; background: white; border-radius: 8px; overflow: hidden; }
+        th { background-color: #2ecc71; color: white; padding: 15px; }
+        td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
+        canvas { margin-top: 30px; max-width: 100%; }
+        #topper-display { margin-top: 20px; font-weight: bold; color: #2c3e50; font-size: 1.1em; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>Student Performance Analyzer</h1>
-    <input type="text" id="name" placeholder="Student Name">
-    <input type="number" id="sub1" placeholder="Subject 1">
-    <input type="number" id="sub2" placeholder="Subject 2">
-    <input type="number" id="sub3" placeholder="Subject 3">
-    <br>
-    <button onclick="addStudent()">Save to Backend</button>
-    <button onclick="clearData()" style="background: #dc3545;">Clear All Data</button>
+    <input type="text" id="name" placeholder="Enter Student Name">
+    <input type="number" id="mark1" placeholder="Subject 1 Marks">
+    <input type="number" id="mark2" placeholder="Subject 2 Marks">
+    <input type="number" id="mark3" placeholder="Subject 3 Marks">
+    
+    <div class="btn-container">
+        <button class="btn-save" onclick="addStudent()">Save to Backend</button>
+        <button class="btn-clear" onclick="clearData()">Clear All Data</button>
+    </div>
 
-    <div id="topper"></div>
+    <div id="topper-display"></div>
 
-    <table>
+    <table id="studentTable">
         <thead>
             <tr>
                 <th>Name</th>
@@ -44,119 +51,119 @@
                 <th>Grade</th>
             </tr>
         </thead>
-        <tbody id="tableBody"></tbody>
+        <tbody></tbody>
     </table>
 
-    <canvas id="chart"></canvas>
+    <canvas id="performanceChart"></canvas>
 </div>
 
 <script>
-let students = JSON.parse(localStorage.getItem("students")) || [];
+    let studentData = [];
+    let myChart;
 
-async function addStudent() {
-    let name = document.getElementById("name").value;
-    let s1 = Number(document.getElementById("sub1").value);
-    let s2 = Number(document.getElementById("sub2").value);
-    let s3 = Number(document.getElementById("sub3").value);
+    // --- FIX: This points to your live Render server ---
+    const API_URL = "https://student-performance-analyzer-swetha.onrender.com/result";
 
-    if(!name || name === "" || isNaN(s1) || isNaN(s2) || isNaN(s3)) {
-        alert("Please enter a name and all marks!");
-        return;
+    async function addStudent() {
+        const name = document.getElementById('name').value;
+        const mark1 = parseInt(document.getElementById('mark1').value);
+        const mark2 = parseInt(document.getElementById('mark2').value);
+        const mark3 = parseInt(document.getElementById('mark3').value);
+
+        if (!name || isNaN(mark1) || isNaN(mark2) || isNaN(mark3)) {
+            alert("Please fill all fields correctly!");
+            return;
+        }
+
+        const payload = { name, mark1, mark2, mark3 };
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.message === "Success") {
+                alert("✅ Saved to Cloud Database!");
+                
+                // Add to local list to update UI immediately
+                const student = { name, mark1, mark2, mark3, total: result.total, average: result.average, grade: result.grade };
+                studentData.push(student);
+                
+                updateUI();
+                clearInputs();
+            } else {
+                alert("❌ Error: " + result.message);
+            }
+        } catch (error) {
+            console.error("Error:", error);
+            alert("❌ Backend not connected! Make sure your Render server is Live.");
+        }
     }
 
-    try {
-        // SENDING DATA TO YOUR NODE.JS SERVER
-        const response = await fetch("https://student-performance-analyzer-4vmj.onrender.com/result", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: name, mark1: s1, mark2: s2, mark3: s3 })
-        });
-
-        if (!response.ok) throw new Error("Server error");
-
-        const data = await response.json();
-
-        // Adding the result returned from the server to our list
-        students.push({
-            name: data.student,
-            sub1: s1,
-            sub2: s2,
-            sub3: s3,
-            total: data.total,
-            average: data.average,
-            grade: data.grade
-        });
-
-        localStorage.setItem("students", JSON.stringify(students));
+    function updateUI() {
+        const tbody = document.querySelector("#studentTable tbody");
+        tbody.innerHTML = "";
         
-        // Clear inputs
-        document.getElementById("name").value = "";
-        document.getElementById("sub1").value = "";
-        document.getElementById("sub2").value = "";
-        document.getElementById("sub3").value = "";
+        studentData.forEach(s => {
+            const row = `<tr>
+                <td>${s.name}</td>
+                <td>${s.mark1}</td>
+                <td>${s.mark2}</td>
+                <td>${s.mark3}</td>
+                <td>${s.total}</td>
+                <td>${s.average}</td>
+                <td>${s.grade}</td>
+            </tr>`;
+            tbody.innerHTML += row;
+        });
 
-        displayData();
         updateChart();
-        showTopper();
-
-    } catch(error) {
-        alert("❌ Error: Backend not connected! Make sure 'node server.js' is running.");
-        console.log(error);
+        findTopper();
     }
-}
 
-function displayData() {
-    let body = document.getElementById("tableBody");
-    body.innerHTML = "";
-    students.forEach(s => {
-        body.innerHTML += `<tr>
-            <td>${s.name}</td>
-            <td>${s.sub1}</td>
-            <td>${s.sub2}</td>
-            <td>${s.sub3}</td>
-            <td>${s.total}</td>
-            <td>${s.average}</td>
-            <td>${s.grade}</td>
-        </tr>`;
-    });
-}
+    function updateChart() {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        const labels = studentData.map(s => s.name);
+        const totals = studentData.map(s => s.total);
 
-function showTopper() {
-    if(students.length === 0) return;
-    let topper = students.reduce((max, s) => s.total > max.total ? s : max);
-    document.getElementById("topper").innerText = "🏆 Topper: " + topper.name + " (" + topper.total + " Marks)";
-}
+        if (myChart) { myChart.destroy(); }
 
-function clearData() {
-    if(confirm("Delete all records?")) {
-        localStorage.removeItem("students");
-        students = [];
-        displayData();
-        updateChart();
-        document.getElementById("topper").innerText = "";
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Total Marks',
+                    data: totals,
+                    backgroundColor: '#2ecc71'
+                }]
+            },
+            options: { scales: { y: { beginAtZero: true } } }
+        });
     }
-}
 
-let chart;
-function updateChart() {
-    let names = students.map(s => s.name);
-    let totals = students.map(s => s.total);
-    const ctx = document.getElementById("chart").getContext("2d");
-    if(chart) chart.destroy();
-    chart = new Chart(ctx, {
-        type: "bar",
-        data: {
-            labels: names,
-            datasets: [{ label: "Total Marks", data: totals, backgroundColor: "#28a745" }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
-}
+    function findTopper() {
+        if (studentData.length === 0) return;
+        const topper = studentData.reduce((prev, current) => (prev.total > current.total) ? prev : current);
+        document.getElementById('topper-display').innerHTML = `🌟 Class Topper: ${topper.name} (${topper.total} marks)`;
+    }
 
-// Initialize on page load
-displayData();
-updateChart();
-showTopper();
+    function clearInputs() {
+        document.getElementById('name').value = '';
+        document.getElementById('mark1').value = '';
+        document.getElementById('mark2').value = '';
+        document.getElementById('mark3').value = '';
+    }
+
+    function clearData() {
+        studentData = [];
+        updateUI();
+        document.getElementById('topper-display').innerHTML = "";
+    }
 </script>
 
 </body>
